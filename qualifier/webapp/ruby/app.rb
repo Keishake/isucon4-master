@@ -3,9 +3,11 @@ require 'digest/sha2'
 require 'mysql2-cs-bind'
 require 'rack-flash'
 require 'json'
+require 'rack-lineprof'
 
 module Isucon4
   class App < Sinatra::Base
+    use Rack::Lineprof
     use Rack::Session::Cookie, secret: ENV['ISU4_SESSION_SECRET'] || 'shirokane'
     use Rack::Flash
     set :public_folder, File.expand_path('../../public', __FILE__)
