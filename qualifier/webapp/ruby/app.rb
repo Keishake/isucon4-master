@@ -3,12 +3,12 @@ require 'digest/sha2'
 require 'mysql2-cs-bind'
 require 'rack-flash'
 require 'json'
-require 'rack-lineprof'
+#require 'rack-lineprof'
 require 'redis'
 
 module Isucon4
   class App < Sinatra::Base
-    use Rack::Lineprof
+#    use Rack::Lineprof
     use Rack::Session::Cookie, secret: ENV['ISU4_SESSION_SECRET'] || 'shirokane'
     use Rack::Flash
     set :public_folder, File.expand_path('../../public', __FILE__)
@@ -46,6 +46,12 @@ module Isucon4
         if succeeded
           redis.set login, 0
           redis.set request.ip, 0
+          last_ip = redis.get "#{login}_ip"
+          last_time = redis.get "#{login}_time"
+          redis.set "#{login}_ip_prev", last_ip if last_ip
+          redis.set "#{login}_time_prev", last_time if last_time
+          redis.set "#{login}_ip", request.ip
+          redis.set "#{login}_time", Time.now.to_i
         else
           num = redis.get login
           num_ip = redis.get request.ip
@@ -108,7 +114,7 @@ module Isucon4
         return @current_user if @current_user
         return nil unless session[:user_id]
 
-        @current_user = db.xquery('SELECT * FROM users WHERE id = ?', session[:user_id].to_i).first
+        @current_user = db.xquery('SELECT id,login FROM users WHERE id = ?', session[:user_id].to_i).first
         unless @current_user
           session[:user_id] = nil
           return nil
@@ -119,8 +125,18 @@ module Isucon4
 
       def last_login
         return nil unless current_user
+        db.xquery('SELECT created_at,ip,login FROM login_log WHERE succeeded = 1 AND user_id = ? ORDER BY id DESC LIMIT 2', current_user['id']).each.last
+      end
 
-        db.xquery('SELECT * FROM login_log WHERE succeeded = 1 AND user_id = ? ORDER BY id DESC LIMIT 2', current_user['id']).each.last
+      def last_login_ip
+        return nil unless current_user
+        return redis.get "#{current_user["login"]}_ip_prev"
+      end
+      
+      def last_login_time
+        return nil unless current_user
+        last_time_i = redis.get "#{current_user["login"]}_time_prev"
+        return Time.at(last_time_i.to_i)
       end
 
       def banned_ips
