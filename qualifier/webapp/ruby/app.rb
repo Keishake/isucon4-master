@@ -49,10 +49,10 @@ module Isucon4
         else
           num = redis.get login
           num_ip = redis.get request.ip
-          num = 0 unless num
-          num_ip = 0 unless num_ip
+          num = 0 if num == nil
+          num_ip = 0 if num_ip == nil
           redis.set login, num.to_i+1
-          redis.set request.ip, num.to_i+1
+          redis.set request.ip, num_ip.to_i+1
         end
         db.xquery("INSERT INTO login_log" \
                   " (`created_at`, `user_id`, `login`, `ip`, `succeeded`)" \
